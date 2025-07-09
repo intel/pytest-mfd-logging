@@ -1,0 +1,38 @@
+[build-system]
+requires = [
+    "setuptools>=80.4.0",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[project]
+name = "pytest-mfd-logging"
+description = "Module for handling PyTest logging."
+requires-python = ">=3.10, <3.14"
+version = "1.23.0"
+dynamic = ["dependencies"]
+license-files = ["LICENSE.md", "AUTHORS.md"]
+readme = {file = "README.md", content-type = "text/markdown"}
+classifiers=["Framework :: Pytest"]
+
+[project.urls]
+Homepage = "https://github.com/intel/mfd"
+Repository = "https://github.com/intel/pytest-mfd-logging"
+Issues = "https://github.com/intel/pytest-mfd-logging/issues"
+Changelog = "https://github.com/intel/pytest-mfd-logging/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+exclude = ["examples", "tests*", "sphinx-doc"]
+
+[tool.setuptools.package-data]
+pytest_mfd_logging = [
+    "configs/*",
+    "templates/*/*",
+    "templates/*/*/*"
+]
+
+[project.entry-points.pytest11]
+pytest_mfd_logging = "pytest_mfd_logging.pytest_mfd_logging"
