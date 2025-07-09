@@ -12,7 +12,7 @@ dependencies = { file = ["requirements.txt"] }
 name = "pytest-mfd-logging"
 description = "Module for handling PyTest logging."
 requires-python = ">=3.10, <3.14"
-version = "1.23.0"
+version = "1.24.0"
 dynamic = ["dependencies"]
 license-files = ["LICENSE.md", "AUTHORS.md"]
 readme = {file = "README.md", content-type = "text/markdown"}
