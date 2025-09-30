@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Main module."""
 
+import json
 import logging
 import os
 from collections import defaultdict
@@ -21,7 +22,7 @@ from .amber_log_formatter import AmberLogFormatter
 
 if TYPE_CHECKING:
     from _pytest.config.argparsing import Parser
-    from _pytest.nodes import Item, Node
+    from _pytest.nodes import Item
     from _pytest.runner import CallInfo
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,11 @@ def pytest_addoption(parser: "Parser") -> None:
             "for example '--filter-out-levels MFD BL DEBUG' will match all levels "
             "like MFD_STEP, MFD_DEBUG, BL_STEP, DEBUG, TEST_DEBUG and each level with matching substring."
         ),
+    )
+    parser.addoption(
+        "--results-json-path",
+        default=None,
+        help="Path to a file to which results will be appended during tests execution.",
     )
 
 
@@ -173,6 +179,12 @@ def pytest_configure(config: pytest.Config) -> None:
     amber_vars.LOG_FORMAT = config.getini("log_format")
     amber_vars.PARSED_JSON_PATH = config.known_args_namespace.parsed_json_path
     amber_vars.FILTER_OUT_LEVELS = config.known_args_namespace.filter_out_levels
+
+    amber_vars.PYTEST_METADATA = {}
+    amber_vars.RESULTS_JSON_PATH = config.known_args_namespace.results_json_path
+    if amber_vars.RESULTS_JSON_PATH is not None:
+        Path(amber_vars.RESULTS_JSON_PATH).write_text("{}")
+
     _add_all_logging_levels()
     _remove_stream_handler()
 
@@ -249,6 +261,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     :param session: The pytest session object.
     """
     _setup_logging_formatters(session)
+
+    amber_vars.PYTEST_CONFIG = session.config
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int | pytest.ExitCode) -> None:
@@ -349,6 +363,108 @@ def pytest_json_runtest_metadata(item: "Item", call: "CallInfo") -> dict[str, An
     return {"created_with": _marker if _marker is not None else "MN"}
 
 
+@pytest.hookimpl()
+def pytest_runtest_makereport(item: "Item", call: "CallInfo") -> pytest.TestReport:
+    """
+    Add test metadata to global metadata dict.
+
+    :param item: PyTest Item object
+    :param call: PyTest Call info
+    :return: PyTest TestReport object
+    """
+    amber_vars.PYTEST_METADATA[item.nodeid] = item._request.node._json_report_extra.get("metadata", {})
+
+
+def _update_progress_file(report: pytest.TestReport) -> None:
+    """
+    Update results json file during tests execution.
+
+    JSON structure matching the one created by pytest-json-report plugin, example:
+    {
+      "tests": [
+        {
+          "nodeid": "tests/test_example.py::test_some_fixtures[|execution_number = 0|]",
+          "outcome": "passed",
+          "metadata": {
+            "iter": 0
+          },
+          "setup": {
+            "outcome": "passed"
+          },
+          "call": {
+            "outcome": "passed"
+          },
+          "teardown": {
+            "outcome": "passed"
+          }
+        }
+      ]
+    }
+
+    :param report: PyTest TestReport object
+    """
+    with open(amber_vars.RESULTS_JSON_PATH) as f:
+        results = json.loads(f.read())
+
+    test_outcome = amber_vars.PYTEST_CONFIG.hook.pytest_report_teststatus(
+        report=report, config=amber_vars.PYTEST_CONFIG
+    )[0]
+    test_results = next(test for test in results["tests"] if test["nodeid"] == report.nodeid)
+
+    if test_outcome not in ("passed", ""):
+        test_results["outcome"] = test_outcome
+
+    test_results[report.when] = {"outcome": report.outcome}
+    test_results["metadata"] = amber_vars.PYTEST_METADATA.get(report.nodeid, {})
+
+    with open(amber_vars.RESULTS_JSON_PATH, "w") as f:
+        f.write(json.dumps(results, indent=2))
+
+
+@pytest.hookimpl()
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """
+    Update results json file during tests execution.
+
+    :param report: PyTest TestReport object
+    """
+    if amber_vars.RESULTS_JSON_PATH is not None:
+        _update_progress_file(report)
+
+
+def _create_empty_live_results_file(session: pytest.Session) -> None:
+    """
+    Create empty results json file before any test is run.
+
+    :param session: The pytest session object.
+    """
+    collected_items = []
+    for i in session.items:
+        if not isinstance(i, pytest.Function):
+            continue
+
+        collected_items.append(
+            {
+                "nodeid": i.nodeid,
+                "outcome": "passed",
+            }
+        )
+
+    with open(amber_vars.RESULTS_JSON_PATH, "w") as f:
+        f.write(json.dumps({"tests": collected_items}, indent=2))
+
+
+@pytest.hookimpl()
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """
+    Create results json file after collection.
+
+    :param session: The pytest session object.
+    """
+    if amber_vars.RESULTS_JSON_PATH is not None:
+        _create_empty_live_results_file(session)
+
+
 """
 Collection flow (https://docs.pytest.org/en/stable/reference/reference.html):
 
@@ -367,4 +483,27 @@ The default collection phase is this (see individual hooks for full details):
 3. pytest_collection_finish(session)
 4. Set session.items to the list of collected items
 5. Set session.testscollected to the number of collected items
+
+
+Run test flow (https://docs.pytest.org/en/stable/reference/reference.html):
+
+The default runtest phase is this (see individual hooks for full details):
+
+1. pytest_runtest_logstart(nodeid, location)
+2. Setup phase:
+    a) call = pytest_runtest_setup(item) (wrapped in CallInfo(when="setup"))
+    b) report = pytest_runtest_makereport(item, call)
+    c) pytest_runtest_logreport(report)
+    d) pytest_exception_interact(call, report) if an interactive exception occurred
+3. Call phase (if setup passed and setuponly is not set):
+    a) call = pytest_runtest_call(item) (wrapped in CallInfo(when="call"))
+    b) report = pytest_runtest_makereport(item, call)
+    c) pytest_runtest_logreport(report)
+    d) pytest_exception_interact(call, report) if an interactive exception occurred
+4. Teardown phase:
+    a) call = pytest_runtest_teardown(item, nextitem) (wrapped in CallInfo(when="teardown"))
+    b) report = pytest_runtest_makereport(item, call)
+    c) pytest_runtest_logreport(report)
+    d) pytest_exception_interact(call, report) if an interactive exception occurred
+5. pytest_runtest_logfinish(nodeid, location)
 """

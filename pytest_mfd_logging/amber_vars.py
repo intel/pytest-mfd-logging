@@ -3,9 +3,13 @@
 """File to keep all variables, which normally would be globals."""
 
 import logging
-from typing import List, Optional
 
-LOG_FORMAT: Optional[str] = None
-OLD_STREAM_HANDLER: Optional[logging.StreamHandler] = None
-PARSED_JSON_PATH: Optional[str] = None
-FILTER_OUT_LEVELS: Optional[List[str]] = None
+import pytest
+
+LOG_FORMAT: str | None = None
+OLD_STREAM_HANDLER: logging.StreamHandler | None = None
+PARSED_JSON_PATH: str | None = None
+FILTER_OUT_LEVELS: list[str] | None = None
+RESULTS_JSON_PATH: str | None = None
+PYTEST_CONFIG: pytest.Config | None = None
+PYTEST_METADATA: dict | None = None
