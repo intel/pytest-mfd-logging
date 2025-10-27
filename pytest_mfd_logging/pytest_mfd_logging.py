@@ -19,6 +19,7 @@ from pytest_reporter_html1.plugin import TemplatePlugin
 from . import amber_vars, marker
 from .amber_log_filter import AmberLogFilter
 from .amber_log_formatter import AmberLogFormatter
+from .exceptions import ExternalIdValidationError
 
 if TYPE_CHECKING:
     from _pytest.config.argparsing import Parser
@@ -180,7 +181,6 @@ def pytest_configure(config: pytest.Config) -> None:
     amber_vars.PARSED_JSON_PATH = config.known_args_namespace.parsed_json_path
     amber_vars.FILTER_OUT_LEVELS = config.known_args_namespace.filter_out_levels
 
-    amber_vars.PYTEST_METADATA = {}
     amber_vars.RESULTS_JSON_PATH = config.known_args_namespace.results_json_path
     if amber_vars.RESULTS_JSON_PATH is not None:
         Path(amber_vars.RESULTS_JSON_PATH).write_text("{}")
@@ -360,7 +360,11 @@ def pytest_json_runtest_metadata(item: "Item", call: "CallInfo") -> dict[str, An
     :return: Dict which will be added to the current test item's JSON metadata
     """
     _marker = _get_marker(item)
-    return {"created_with": _marker if _marker is not None else "MN"}
+    extra_metadata = {"created_with": _marker if _marker is not None else "MN"}
+    if hasattr(item, "external_id"):
+        extra_metadata["external_id"] = item.external_id
+
+    return extra_metadata
 
 
 @pytest.hookimpl()
@@ -372,7 +376,7 @@ def pytest_runtest_makereport(item: "Item", call: "CallInfo") -> pytest.TestRepo
     :param call: PyTest Call info
     :return: PyTest TestReport object
     """
-    amber_vars.PYTEST_METADATA[item.nodeid] = item._request.node._json_report_extra.get("metadata", {})
+    amber_vars.PYTEST_METADATA[item.nodeid] = getattr(item._request.node, "_json_report_extra", {}).get("metadata", {})
 
 
 def _update_progress_file(report: pytest.TestReport) -> None:
@@ -409,7 +413,10 @@ def _update_progress_file(report: pytest.TestReport) -> None:
     test_outcome = amber_vars.PYTEST_CONFIG.hook.pytest_report_teststatus(
         report=report, config=amber_vars.PYTEST_CONFIG
     )[0]
-    test_results = next(test for test in results["tests"] if test["nodeid"] == report.nodeid)
+    test_results = next((test for test in results["tests"] if test["nodeid"] == report.nodeid), None)
+    if test_results is None:
+        logger.warning(f"Test {report.nodeid} not found in results json file. Live updating skipped.")
+        return
 
     if test_outcome not in ("passed", ""):
         test_results["outcome"] = test_outcome
@@ -463,6 +470,71 @@ def pytest_collection_finish(session: pytest.Session) -> None:
     """
     if amber_vars.RESULTS_JSON_PATH is not None:
         _create_empty_live_results_file(session)
+
+
+@pytest.hookimpl()
+def pytest_itemcollected(item: "Item") -> None:
+    """
+    Get external id from marker and add it to item.
+
+    Marker "external_ids" is expected to have a list of ids as its first argument.
+    Based on index of parameterization current test is using, proper external id is selected.
+    *IMPORTANT*: All members of indices share same index value - seems like a bug in PyTest.
+
+    :param item: PyTest Item object
+    """
+    ids_marker = next((m for m in item.own_markers if m.name == "external_ids"), None)
+    if ids_marker is not None:
+        param_index = next(iter(item.callspec.indices.values()))
+        if param_index >= len(ids_marker.args[0]):
+            return
+
+        item.external_id = ids_marker.args[0][param_index]
+
+    id_marker = next((m for m in item.own_markers if m.name == "external_id"), None)
+    if id_marker is not None:
+        item.external_id = id_marker.args[0]
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtestloop(session: pytest.Session) -> bool | None:
+    """
+    Validate external id markers before tests execution.
+
+    https://docs.pytest.org/en/stable/reference/reference.html#pytest.hookspec.pytest_runtestloop
+
+    :param session: The pytest session object.
+    """
+    marker_id_to_obj: dict[int, pytest.Mark] = {}
+    marker_id_to_test_case_counter: dict[int, int] = defaultdict(int)
+    for item in session.items:
+        marker_obj = next((m for m in item.own_markers if m.name in ("external_id", "external_ids")), None)
+        if marker_obj is None:
+            continue
+
+        marker_id = id(marker_obj)
+        marker_id_to_test_case_counter[marker_id] += 1
+        if marker_id not in marker_id_to_obj:
+            marker_id_to_obj[marker_id] = marker_obj
+
+    validation_errors = []
+    for marker_id, marker_obj in marker_id_to_obj.items():
+        total_test_cases = marker_id_to_test_case_counter[marker_id]
+        if marker_obj.name == "external_id" and total_test_cases > 1:
+            validation_errors.append(
+                f"Marker 'external_id' used for multiple test cases ({total_test_cases}) "
+                "but it should be used for single test case only.\n"
+                f"ID used: {marker_obj.args[0]}",
+            )
+        if marker_obj.name == "external_ids" and total_test_cases != len(marker_obj.args[0]):
+            validation_errors.append(
+                f"Marker 'external_ids' used for {total_test_cases} test cases "
+                f"but it contains {len(marker_obj.args[0])} IDs.\n"
+                f"IDs used: {marker_obj.args[0]}",
+            )
+
+    if validation_errors:
+        raise ExternalIdValidationError("External ID markers validation errors:\n\n" + "\n\n".join(validation_errors))
 
 
 """

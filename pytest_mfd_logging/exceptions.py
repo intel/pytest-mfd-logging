@@ -5,3 +5,7 @@
 
 class UnrecognizedMarkerError(AttributeError):
     """Unrecognized Marker Error."""
+
+
+class ExternalIdValidationError(Exception):
+    """External ID marker validation error."""
