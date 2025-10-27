@@ -182,6 +182,74 @@ Let's assume our logging has 6 levels:
 - `--log-cli-level INFO --filter-out-levels MFD` - log levels displayed from points: 4), 6)
 - `--filter-out-levels MFD BL` - log levels displayed from points: 1), 4)
 
+## External ID marker
+
+You can mark test with external ID(s) from test management system like JIRA.
+Such ID will be later passed to reporting system.
+
+#### Available markers:
+
+- `@pytest.mark.external_id( <string ID> )`
+- `@pytest.mark.external_ids( <list of string IDs> )`
+
+> [!IMPORTANT]
+> When Test Case is parametrized, and you pass multiple IDs we will assume that order of IDs corresponds to order of PyTest parameter sets.
+> 
+> In other words - first ID will be assigned to first parameter set, second ID to second parameter set, and so on.
+
+#### Usage
+
+> [!IMPORTANT]
+> Please make sure that `--json-report` command line parameter is provided to enable JSON reporting.
+> 
+> Otherwise, external IDs will not have any effect.
+
+When Test Case is not parametrized, and you want to assign single external ID:
+
+```python
+@pytest.mark.external_id("ID-001")
+def test_1():
+    logger.debug("This is a debug message in test_1")
+    assert True
+```
+
+When Test Case is parametrized (does not matter if parametrized with config or with parametrize marker) and you want to assign multiple external IDs:
+
+```python
+@pytest.mark.external_ids([
+    "ID-015", "ID-016", "ID-017", "ID-018", "ID-019", "ID-020",
+    "ID-021", "ID-022", "ID-023", "ID-024", "ID-025", "ID-026",
+])
+def test_with_config_params(iterations, rate, letter):
+    """
+    yaml config:
+        iterations: [10, 20]
+        rate: [3, 4, 5]
+        letter: ['a', 'b']
+    """
+    logger.debug(f"Running test_with_config_params with {iterations= }, {rate= }, {letter= }")
+```
+
+```python
+@pytest.mark.external_ids([
+    "ID-001", "ID-002", "ID-003", "ID-004", "ID-005", "ID-006",
+    "ID-007", "ID-008", "ID-009", "ID-010", "ID-011", "ID-012",
+])
+@pytest.mark.parametrize('iterations', [1, 2, 3, 4])
+@pytest.mark.parametrize('rate', [1, 2, 3])
+def test_with_parametrize(iterations, rate):
+    logger.debug(f"Running test_with_parametrize with {iterations= }, {rate= }")
+```
+
+#### Result
+
+In JSON report in metadata section of each test case you will find assigned external ID:
+```json
+"metadata": {
+  "external_id": "ID-019"
+}
+```
+
 ## Test origin marker
 
 You can mark `test` / `class` / `file` with one of the markers:

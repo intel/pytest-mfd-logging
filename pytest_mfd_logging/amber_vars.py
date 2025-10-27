@@ -12,4 +12,4 @@ PARSED_JSON_PATH: str | None = None
 FILTER_OUT_LEVELS: list[str] | None = None
 RESULTS_JSON_PATH: str | None = None
 PYTEST_CONFIG: pytest.Config | None = None
-PYTEST_METADATA: dict | None = None
+PYTEST_METADATA: dict = {}
