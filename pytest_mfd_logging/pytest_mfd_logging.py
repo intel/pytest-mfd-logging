@@ -23,7 +23,7 @@ from .exceptions import ExternalIdValidationError
 
 if TYPE_CHECKING:
     from _pytest.config.argparsing import Parser
-    from _pytest.nodes import Item
+    from _pytest.nodes import Item, Node
     from _pytest.runner import CallInfo
 
 logger = logging.getLogger(__name__)
