@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.25.1 (2025-11-14)
+
+### Bug Fixes
+
+- Check if session has items.
+  ([`7a1c07a`](https://github.com/intel/pytest-mfd-logging/commit/7a1c07accd735d8bf6121c1290feb029640b6b3f))
+
+
 ## v1.25.0 (2025-11-12)
 
 ### Continuous Integration
