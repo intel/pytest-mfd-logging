@@ -446,16 +446,17 @@ def _create_empty_live_results_file(session: pytest.Session) -> None:
     :param session: The pytest session object.
     """
     collected_items = []
-    for i in session.items:
-        if not isinstance(i, pytest.Function):
-            continue
+    if hasattr(session, "items"):
+        for i in session.items:
+            if not isinstance(i, pytest.Function):
+                continue
 
-        collected_items.append(
-            {
-                "nodeid": i.nodeid,
-                "outcome": "passed",
-            }
-        )
+            collected_items.append(
+                {
+                    "nodeid": i.nodeid,
+                    "outcome": "passed",
+                }
+            )
 
     with open(amber_vars.RESULTS_JSON_PATH, "w") as f:
         f.write(json.dumps({"tests": collected_items}, indent=2))
@@ -505,6 +506,9 @@ def pytest_runtestloop(session: pytest.Session) -> bool | None:
 
     :param session: The pytest session object.
     """
+    if not hasattr(session, "items"):
+        return
+
     marker_id_to_obj: dict[int, pytest.Mark] = {}
     marker_id_to_test_case_counter: dict[int, int] = defaultdict(int)
     for item in session.items:
