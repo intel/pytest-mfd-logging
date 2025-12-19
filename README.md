@@ -197,6 +197,18 @@ Such ID will be later passed to reporting system.
 > 
 > In other words - first ID will be assigned to first parameter set, second ID to second parameter set, and so on.
 
+> [!IMPORTANT]
+> #### Alternative ID passing:
+>
+> You can also use [extra_data](https://github.com/intel/pytest-mfd-config?tab=readme-ov-file#extra_data) fixture instead of markers!
+>
+> #### Usage:
+>
+> ```python
+> def test_some(extra_data):
+>     extra_data["external_id"] = "ID-001"
+> ```
+
 #### Usage
 
 > [!IMPORTANT]
