@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 add_logging_level("MODULE_DEBUG", log_levels.MODULE_DEBUG)
 
+_INI_BOOL_TRUE_VALUES = {"1", "yes", "true", "on"}
+
 
 def pytest_addoption(parser: "Parser") -> None:
     """
@@ -167,15 +169,28 @@ def _read_default_ini_file(section: str) -> Dict[str, str]:
     return {param: parser.get(section, param, raw=True) for param in log_params}
 
 
+def _normalize_ini_value(key: str, value: Any) -> Any:
+    """Convert plugin defaults for known pytest ini options to their public types."""
+    if not isinstance(value, str):
+        return value
+
+    if key == "log_cli":
+        return value.strip().lower() in _INI_BOOL_TRUE_VALUES
+    if key == "markers":
+        return [line.strip() for line in value.splitlines() if line.strip()]
+    return value
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config: pytest.Config) -> None:
     """
     Perform initial configuration, it's called after command line parsing.
 
     :param config: The pytest config object.
     """
-    logger_settings = _read_default_ini_file("pytest")
-    logger_settings.update(config.inicfg)
-    config.inicfg = logger_settings
+    logger_settings = {key: _normalize_ini_value(key, value) for key, value in _read_default_ini_file("pytest").items()}
+    for key, value in logger_settings.items():
+        config.inicfg.setdefault(key, value)
 
     amber_vars.LOG_FORMAT = config.getini("log_format")
     amber_vars.PARSED_JSON_PATH = config.known_args_namespace.parsed_json_path
