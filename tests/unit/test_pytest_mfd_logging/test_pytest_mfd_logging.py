@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: MIT
 """Tests for `pytest_mfd_logging` package."""
 
+import json
+from types import SimpleNamespace
+
 import pytest
 from _pytest.mark import Mark
 from _pytest.nodes import Node
 from pytest_mfd_logging import amber_vars
-import json
 
 from pytest_mfd_logging.pytest_mfd_logging import (
     pytest_make_parametrize_id,
@@ -14,6 +16,7 @@ from pytest_mfd_logging.pytest_mfd_logging import (
     pytest_json_runtest_metadata,
     pytest_runtestloop,
     _create_empty_live_results_file,
+    pytest_configure,
 )
 
 
@@ -52,6 +55,43 @@ class TestPytestMfdLogging:
 
         item.own_markers = []
         assert pytest_json_runtest_metadata(item, call_info_mock) == {"created_with": "MN"}
+
+    def test_pytest_configure_merges_defaults_without_inicfg_setter(self, mocker):
+        mocker.patch(
+            "pytest_mfd_logging.pytest_mfd_logging._read_default_ini_file",
+            return_value={
+                "log_format": "DEFAULT",
+                "log_cli": "True",
+                "markers": "\nMARK_A\nMARK_B",
+                "log_cli_level": "DEBUG",
+            },
+        )
+        mocker.patch("pytest_mfd_logging.pytest_mfd_logging._add_all_logging_levels")
+        mocker.patch("pytest_mfd_logging.pytest_mfd_logging._remove_stream_handler")
+
+        class ConfigStub:
+            def __init__(self):
+                self._inicfg = {"log_format": "OVERRIDE"}
+                self.known_args_namespace = SimpleNamespace(
+                    parsed_json_path=None, filter_out_levels=None, results_json_path=None
+                )
+
+            @property
+            def inicfg(self):
+                return self._inicfg
+
+            def getini(self, name):
+                return self.inicfg[name]
+
+        config = ConfigStub()
+
+        pytest_configure(config)
+
+        assert config.inicfg["log_format"] == "OVERRIDE"
+        assert config.inicfg["log_cli"] is True
+        assert config.inicfg["markers"] == ["MARK_A", "MARK_B"]
+        assert config.inicfg["log_cli_level"] == "DEBUG"
+        assert amber_vars.LOG_FORMAT == "OVERRIDE"
 
     def test_pytest_runtestloop_without_items_attribute(self, mocker):
         """Test that pytest_runtestloop returns early when session has no items attribute."""
