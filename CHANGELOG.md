@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v1.26.0 (2026-06-15)
+
+### Chores
+
+- Align repository configuration to other MFDs
+  ([`28c6d7a`](https://github.com/intel/pytest-mfd-logging/commit/28c6d7a75ba35a17f556ade3079744f4bda66e58))
+
+### Documentation
+
+- Update external_id section.
+  ([`fe1a973`](https://github.com/intel/pytest-mfd-logging/commit/fe1a9730e65d4edacded08f0a41f4ab0a1c512bd))
+
+### Features
+
+- Add pytest 9 support
+  ([`84fdd97`](https://github.com/intel/pytest-mfd-logging/commit/84fdd974b5da5de7199d87229e67527ebc569f0d))
+
+
 ## v1.25.1 (2025-11-14)
 
 ### Bug Fixes
