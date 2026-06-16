@@ -150,16 +150,16 @@ To make filtering logs easy we've introduced `--filter-out-levels` command line 
 This can be useful when log levels you want to see and these which you want to filter out are not in right order, so they can't be simply disabled by for example `log-cli-level`.
 Those cli params can be provided together.
 
-`--filter-out-logs` accepts a list of substrings of log levels names or partial names (separated by whitespace only names).
+`--filter-out-levels` accepts a list of substrings of log levels names or partial names (separated by whitespace only names).
 Capitalization of letters does not matter as they all will be `.upper()`.
 Given substrings are checked by `in` operator of `string` type.
 So to match for example `MFD_DEBUG` you can pass `MFD`, `MFD_`, `_DEBUG`, `MFD_DEBUG`, ...
 
 Example for single log level or partial log level name:
-- `--filter-out-logs MFD`
+- `--filter-out-levels MFD`
 
 Example for more filtered out log levels (when list is provided):
-- `--filter-out-logs BL MFD TEST_DEBUG`
+- `--filter-out-levels BL MFD TEST_DEBUG`
 
 To check what log levels are available please refer to:
 1) [mfd-common-libs](https://github.com/intel/mfd-common-libs/blob/main/mfd_common_libs/log_levels.py)
